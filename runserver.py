@@ -104,6 +104,7 @@ def send_temp_ontime(isfirst, remind_t):
     global thread_temp
     thr = threading.current_thread()
     print('current thread ', thr.getName())
+    print('current active thread: ', threading.activeCount())
     print('start to send temp', time.asctime(time.localtime((time.time()))))
     if isfirst != 1:
         thr = DbController(func='get_specified_remind_openid', mycache=mycache, remind_time=remind_t)
@@ -227,9 +228,13 @@ def update_token_ontime():
     thread_token.start()
 
 
+
+
+
 thread_gettime = DbController(func='get_all_remind_time', mycache=mycache)
 thread_token = threading.Timer(1, update_token_ontime)
 thread_temp = threading.Timer(10, send_temp_ontime, [1, None])
+thread_timer = threading.Timer(3600, handle_tasks_ontime)
 thread_gettime.start()
 thread_token.start()
 thread_temp.start()
