@@ -14,6 +14,7 @@ from sqlalchemy.orm import relationship, backref
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import distinct
 import threading
+import datetime
 
 Base = declarative_base()
 
@@ -79,7 +80,9 @@ class Patient(Base):
     __tablename__ = 'info_patient'
 
     id = Column(Integer, primary_key=True)
-    wechat_openid = Column(String(30))
+    gzh_openid = Column(String(50))
+    minip_openid = Column(String(50))
+    unionid = Column(String(50), nullable=False, unique=True)
     url_portrait = Column(String(255))
     name = Column(String(20))
     sex = Column(Integer)
@@ -104,6 +107,7 @@ class Question(Base):
     questionnaire_id = Column(ForeignKey('info_questionnaire.id'), nullable=False, index=True)
     qtype = Column(Integer)
     remark = Column(String(200))
+    template_id = db.Column(db.Integer)
 
     # options = relationship('Option', back_populates='question')
     options = relationship('Option', backref='question')
@@ -116,7 +120,7 @@ class Option(Base):
     id = Column(Integer, primary_key=True)
     question_id = Column(ForeignKey('info_question.id'))
     content = Column(String(200), nullable=False)
-    score = Column(Float(8, 2))
+    score = Column(Float(8, 3))
     total_votes = Column(Integer)
     goto = Column(Integer)
 
@@ -173,7 +177,7 @@ class MapPatientQuestionnaire(Base):
     __tablename__ = 'map_patient_questionnaire'
 
     id = Column(Integer, primary_key=True)
-    patient_id = Column(ForeignKey('info_patient.id'), nullable=False, index=True)
+    patient_id = Column(ForeignKey('info_patient.id'), unique=True, nullable=False, index=True)
     questionnaire_id = Column(ForeignKey('info_questionnaire.id'), nullable=False, index=True)
     weight = Column(Float(8, 2))
     height = Column(Integer)
@@ -181,7 +185,7 @@ class MapPatientQuestionnaire(Base):
     is_drink = Column(Integer)
     is_operated = Column(Integer)
     total_days = Column(Integer)
-    score = Column(Float(8, 2))
+    score = Column(Float(8, 3))
     doctor_id = Column(ForeignKey('info_doctor.id'), nullable=False, index=True)
     status = Column(Integer, nullable=False)
     dt_built = Column(DateTime)
@@ -190,6 +194,7 @@ class MapPatientQuestionnaire(Base):
     days_remained = Column(Integer)
     interval = Column(Integer)
     is_need_send_task = Column(Integer)
+    need_answer_module = Column(String, default=None)
 
     doctor = relationship('Doctor', primaryjoin='MapPatientQuestionnaire.doctor_id == Doctor.id',
                           backref='map_patient_questionnaires')
@@ -229,24 +234,29 @@ class DbController(threading.Thread):
 
     def run(self):
         if self.func == 'add_user_subscribe':
-            if 'openid' in self.kwargs.keys():
-                self.add_user_subscribe(self.kwargs['openid'])
+            if 'unionid' in self.kwargs.keys():
+                self.add_user_subscribe(self.kwargs['openid'], self.kwargs['unionid'])
             else:
-                print('args error, no openid')
+                print('args error, no unionid')
 
         elif self.func == 'get_all_remind_time':
             self.get_all_remind_time(self.kwargs['mycache'])
         elif self.func == 'get_specified_remind_openid':
             self.get_specified_remind_openid(self.kwargs['mycache'], self.kwargs['remind_time'])
+        elif self.func == 'update_day_oneday':
+            self.update_day_oneday()
         else:
             pass
 
-    def add_user_subscribe(self, openid):
-        user_modify = self.session.query(Patient).filter_by(wechat_openid=openid).all()
+    def add_user_subscribe(self, openid, unionid):
+        user_modify = self.session.query(Patient).filter_by(unionid=unionid).one_or_none()
         if user_modify:
             print('the user has been existed')
+            try:
+                user_modify.dt_subscribe = datetime.datetime.now()
+                user_modify.db_unsubscribe = None
         else:
-            user = Patient(wechat_openid=openid)
+            user = Patient(gzh_openid=openid, unionid=unionid)
             self.session.add(user)
             self.session.commit()
 
@@ -263,7 +273,7 @@ class DbController(threading.Thread):
         print(rsl)
         if rsl:
             for i in rsl:
-                rsl_single = self.session.query(Patient.wechat_openid).filter(Patient.id.in_(
+                rsl_single = self.session.query(Patient.gzh_openid).filter(Patient.id.in_(
                     self.session.query(MapPatientQuestionnaire.patient_id).filter_by(questionnaire_id=i[0],
                                                                                      current_period=i[1]))).all()
                 print(rsl_single)
@@ -275,3 +285,17 @@ class DbController(threading.Thread):
         else:
             print('warning! there is no openid for the remind time-- ', remind_time)
         mycache.set('remind_openid_set', openid_set)
+
+    def update_day_oneday(self):
+        rsl = MapPatientQuestionnaire.query.filter(MapPatientQuestionnaire.status == 1).all()
+        if rsl:
+            for i in rsl:
+                if i.days_remained == 1:
+                    ## the period is end
+                    rsl_s = QuestionnaireStruct.query.filter(QuestionnaireStruct.questionnaire_id == i.questionnaire_id,
+                                                             QuestionnaireStruct.respondent == 0,
+                                                             QuestionnaireStruct.period = i.)
+                else:
+                    pass
+        else:
+            pass

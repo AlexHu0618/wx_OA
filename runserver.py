@@ -11,6 +11,7 @@ from wechatpy.exceptions import InvalidSignatureException
 from wechatpy import parse_message
 from wechatpy.replies import TextReply
 from models import DbController
+from wechatpy import WeChatClient
 
 
 # APPID = 'wx94d947291c14ff43'
@@ -33,12 +34,13 @@ mycache.set('access_tocken', '')
 mycache.set('openid', '')
 
 mutex = threading.Lock()
+client = WeChatClient(APPID, APPSECRET)
 
 
 def handlemsg(data):
     msg = parse_message(data)
     print(msg)
-    global mycache
+    global mycache, client
     mutex.acquire()
     mycache.set('openid', msg.source)
     mutex.release()
@@ -48,9 +50,10 @@ def handlemsg(data):
         return xml
     elif msg.type == 'event':
         if msg.event == 'subscribe':
-            reply = TextReply(content="谢谢您的关注，兄dei", message=msg)
+            reply = TextReply(content="谢谢您的关注!!", message=msg)
             print('user: %s is in' % msg.source)
-            thd = DbController(func='add_user_subscribe', openid=msg.source)
+            user = client.user.get(msg.source)
+            thd = DbController(func='add_user_subscribe', openid=msg.source, unionid=user['unionid'])
             thd.start()
             xml = reply.render()
             return xml
@@ -228,7 +231,15 @@ def update_token_ontime():
     thread_token.start()
 
 
-
+def handle_tasks_ontime():
+    global thread_timer
+    time_cur = time.localtime(time.time())
+    h_cur = time_cur.tm_hour
+    if h_cur == 3:
+        thread_update_day = DbController(func='update_day_oneday')
+        thread_update_day.start()
+    thread_timer = threading.Timer(3600, handle_tasks_ontime)
+    thread_timer.start()
 
 
 thread_gettime = DbController(func='get_all_remind_time', mycache=mycache)
@@ -238,6 +249,7 @@ thread_timer = threading.Timer(3600, handle_tasks_ontime)
 thread_gettime.start()
 thread_token.start()
 thread_temp.start()
+thread_timer.start()
 
 #
 # def fuc():
