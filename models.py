@@ -15,21 +15,23 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import distinct
 import threading
 import datetime
+import re
+
 
 Base = declarative_base()
 
 
 t_map_doctor_patient = Table(
-    'map_doctor_patient', MetaData,
-    Column('doctor_id', ForeignKey('info_doctor.id'), nullable=False, index=True),
-    Column('patient_id', ForeignKey('info_patient.id'), nullable=False, index=True)
+    'map_doctor_patient', Base.metadata,
+    Column('doctor_id', Integer, ForeignKey('info_doctor.id')),
+    Column('patient_id', Integer, ForeignKey('info_patient.id'))
 )
 
 
 t_map_doctor_questionnaire = Table(
-    'map_doctor_questionnaire', MetaData,
-    Column('doctor_id', ForeignKey('info_doctor.id'), nullable=False, index=True),
-    Column('questionnaire_id', ForeignKey('info_questionnaire.id'), nullable=False, index=True)
+    'map_doctor_questionnaire', Base.metadata,
+    Column('doctor_id', Integer, ForeignKey('info_doctor.id')),
+    Column('questionnaire_id', Integer, ForeignKey('info_questionnaire.id'))
 )
 
 
@@ -87,6 +89,8 @@ class Patient(Base):
     name = Column(String(20))
     sex = Column(Integer)
     birthday = Column(Date)
+    weight = Column(Integer)
+    height = Column(Integer)
     nation = Column(String(5))
     email = Column(String(100))
     dt_subscribe = Column(DateTime)
@@ -107,7 +111,7 @@ class Question(Base):
     questionnaire_id = Column(ForeignKey('info_questionnaire.id'), nullable=False, index=True)
     qtype = Column(Integer)
     remark = Column(String(200))
-    template_id = db.Column(db.Integer)
+    template_id = Column(Integer)
 
     # options = relationship('Option', back_populates='question')
     options = relationship('Option', backref='question')
@@ -179,7 +183,7 @@ class MapPatientQuestionnaire(Base):
     id = Column(Integer, primary_key=True)
     patient_id = Column(ForeignKey('info_patient.id'), unique=True, nullable=False, index=True)
     questionnaire_id = Column(ForeignKey('info_questionnaire.id'), nullable=False, index=True)
-    weight = Column(Float(8, 2))
+    weight = Column(Integer)
     height = Column(Integer)
     is_smoking = Column(Integer)
     is_drink = Column(Integer)
@@ -193,8 +197,8 @@ class MapPatientQuestionnaire(Base):
     current_period = Column(Integer)
     days_remained = Column(Integer)
     interval = Column(Integer)
-    is_need_send_task = Column(Integer)
-    need_answer_module = Column(String, default=None)
+    need_send_task_module = Column(String(100), default=None)
+    need_answer_module = Column(String(100), default=None)
 
     doctor = relationship('Doctor', primaryjoin='MapPatientQuestionnaire.doctor_id == Doctor.id',
                           backref='map_patient_questionnaires')
@@ -245,6 +249,8 @@ class DbController(threading.Thread):
             self.get_specified_remind_openid(self.kwargs['mycache'], self.kwargs['remind_time'])
         elif self.func == 'update_day_oneday':
             self.update_day_oneday()
+        elif self.func == 'delete_user_subscribe':
+            self.delete_user_subscribe(self.kwargs['openid'])
         else:
             pass
 
@@ -255,10 +261,32 @@ class DbController(threading.Thread):
             try:
                 user_modify.dt_subscribe = datetime.datetime.now()
                 user_modify.db_unsubscribe = None
+                user_modify.gzh_openid = openid
+                self.session.commit()
+            except Exception as e:
+                self.session.rollback()
+                print(e)
         else:
             user = Patient(gzh_openid=openid, unionid=unionid)
-            self.session.add(user)
-            self.session.commit()
+            try:
+                self.session.add(user)
+                self.session.commit()
+            except Exception as e:
+                self.session.rollback()
+                print(e)
+
+    def delete_user_subscribe(self, openid):
+        user_modify = self.session.query(Patient).filter_by(gzh_openid=openid).one_or_none()
+        if user_modify:
+            try:
+                user_modify.dt_subscribe = None
+                user_modify.db_unsubscribe = datetime.datetime.now()
+                self.session.commit()
+            except Exception as e:
+                self.session.rollback()
+                print(e)
+        else:
+            print('there is no user: ', openid)
 
     def get_all_remind_time(self, mycache):
         all_time = self.session.query(distinct(QuestionnaireStruct.time)).filter_by(respondent=0).all()
@@ -267,35 +295,69 @@ class DbController(threading.Thread):
         print(all_time_sorted)
 
     def get_specified_remind_openid(self, mycache, remind_time):
-        rsl = self.session.query(QuestionnaireStruct.questionnaire_id,
+        ######################################
+        ## get all patient for reminding
+        #####################################
+        rsl = self.session.query(QuestionnaireStruct.id, QuestionnaireStruct.questionnaire_id,
                                  QuestionnaireStruct.period).filter_by(time=remind_time, respondent=0).all()
         openid_set = set()
         print(rsl)
-        if rsl:
+        if rsl:  ## [(id, questionnnaire_id, period), ...]
             for i in rsl:
-                rsl_single = self.session.query(Patient.gzh_openid).filter(Patient.id.in_(
-                    self.session.query(MapPatientQuestionnaire.patient_id).filter_by(questionnaire_id=i[0],
-                                                                                     current_period=i[1]))).all()
-                print(rsl_single)
-                if rsl_single:
-                    set_single_qn = set([i[0] for i in rsl_single])
-                    openid_set = openid_set | set_single_qn
+                rsl_mappqn = self.session.query(MapPatientQuestionnaire).filter_by(questionnaire_id=i[1],
+                                                                                   current_period=i[2],
+                                                                                   status=1).all()
+                print(rsl_mappqn)
+                if rsl_mappqn:
+                    pid_list = [r.patient_id for r in rsl_mappqn]
+                    rsl_single = self.session.query(Patient.gzh_openid, Patient.id).filter(Patient.id.in_(pid_list)).all()
+                    print(rsl_single)
+                    if rsl_single:
+                        set_single_qn = set([j[0] for j in rsl_single])
+                        openid_set = openid_set | set_single_qn
+                        for r in rsl_mappqn:
+                            print(r)
+                            if r.need_answer_module:
+                                r.need_answer_module = re.split(',', r.need_answer_module).append(str(i[0]))
+                            else:
+                                r.need_answer_module = [i[0]]
+                    else:
+                        print('there is no record')
                 else:
-                    print('warning! questionnaire--%s is None', i[0])
+                    print('warning! mapPatientQuestionnaire--%s is None', i[1])
+            try:
+                self.session.commit()
+            except Exception as e:
+                self.session.rollback()
+                print(e)
         else:
             print('warning! there is no openid for the remind time-- ', remind_time)
         mycache.set('remind_openid_set', openid_set)
 
     def update_day_oneday(self):
-        rsl = MapPatientQuestionnaire.query.filter(MapPatientQuestionnaire.status == 1).all()
+        rsl = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1).all()
         if rsl:
             for i in rsl:
                 if i.days_remained == 1:
-                    ## the period is end
-                    rsl_s = QuestionnaireStruct.query.filter(QuestionnaireStruct.questionnaire_id == i.questionnaire_id,
-                                                             QuestionnaireStruct.respondent == 0,
-                                                             QuestionnaireStruct.period = i.)
+                    ## current period is end
+                    rsl_s = self.session.query(QuestionnaireStruct).filter(
+                        QuestionnaireStruct.questionnaire_id == i.questionnaire_id,
+                        QuestionnaireStruct.respondent == 0,
+                        QuestionnaireStruct.period == i.current_period + 1).one_or_none()
+                    if rsl_s:
+                        i.current_period = i.current_period + 1
+                        i.days_remained = rsl_s.day_end - rsl_s.day_start + 1
+                        i.interval = rsl_s.interval
+                        i.need_answer_module = None
+                    else:
+                        print('there is no recode for update_day_oneday()')
                 else:
-                    pass
+                    i.days_remained = i.days_remained - 1
+                    i.need_answer_module = None
+            try:
+                self.session.commit()
+            except Exception as e:
+                self.session.rollback()
+                print(e)
         else:
-            pass
+            print('there is no MapPatientQuestionnaire for update_day_oneday()')

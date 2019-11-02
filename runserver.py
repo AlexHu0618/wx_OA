@@ -12,6 +12,7 @@ from wechatpy import parse_message
 from wechatpy.replies import TextReply
 from models import DbController
 from wechatpy import WeChatClient
+from myLogger import mylogger
 
 
 # APPID = 'wx94d947291c14ff43'
@@ -58,6 +59,8 @@ def handlemsg(data):
             xml = reply.render()
             return xml
         elif msg.event == 'unsubscribe':
+            thd = DbController(func='delete_user_subscribe', openid=msg.source)
+            thd.start()
             print('user: %s has outed' % msg.source)
             return ''
         else:
@@ -72,7 +75,7 @@ def handlemsg(data):
 def hello_world():
     try:
         if request.method == 'GET':
-            print("try to login")
+            print("request.args ", request.args)
             signature = request.args.get("signature", "")
             timestamp = request.args.get("timestamp", "")
             nonce = request.args.get("nonce", "")
@@ -118,6 +121,7 @@ def send_temp_ontime(isfirst, remind_t):
         if openid_set:
             for oid in openid_set:
                 test_temp(oid)
+            mylogger.info('sent remind info to %s' % str(openid_set))
         else:
             print('no openid for sending template at ', remind_t)
     mutex.acquire()
@@ -164,7 +168,7 @@ def test_temp(openid):
     data = {
         'touser': openid,
         'template_id': temp_id,
-        'url': 'http://weixin.qq.com',
+        # 'url': 'http://weixin.qq.com',
         # 'miniprogram': {
         #     'appid': 'wx7469bbae33c99a3f',
         #     'pagepath': 'index'
@@ -180,7 +184,7 @@ def test_temp(openid):
                 'color': '#003108'
             },
             'keyword2': {
-                'value': '内科',
+                'value': '结直肠肛门外科',
                 'color': '#001179'
             },
             'keyword3': {
@@ -188,7 +192,7 @@ def test_temp(openid):
                 'color': '#009187'
             },
             'remark': {
-                'value': '让我们度过愉快的每一天，一起完成这个小小的问卷吧',
+                'value': '让我们度过愉快的每一天，一起去完成这个小小的问卷吧',
                 'color': '#345678'
             }
         }
@@ -226,6 +230,7 @@ def update_token_ontime():
     access_token, expire_in = get_token()
     mycache.set('access_token', access_token)
     mutex.release()
+    mylogger.info('update new access_token')
     print('got new access_token, expire in %s seconds: ' % expire_in)
     thread_token = threading.Timer(expire_in, update_token_ontime)
     thread_token.start()
@@ -238,6 +243,7 @@ def handle_tasks_ontime():
     if h_cur == 3:
         thread_update_day = DbController(func='update_day_oneday')
         thread_update_day.start()
+        mylogger.info('change the day one day')
     thread_timer = threading.Timer(3600, handle_tasks_ontime)
     thread_timer.start()
 
@@ -251,7 +257,7 @@ thread_token.start()
 thread_temp.start()
 thread_timer.start()
 
-#
+
 # def fuc():
 #     global mycache
 #     time_list = mycache.get('all_remind_time')
@@ -264,11 +270,12 @@ thread_timer.start()
 #     print('delata= ', delta)
 #
 #
-# t1 = datetime.time(13, 0)
-# t = DbController(func='get_specified_remind_openid', mycache=mycache, remind_time=t1)
+# t1 = datetime.time(21, 30)
+# t = DbController(func='update_day_oneday')
 # t.start()
 # # thr = threading.Timer(5, fuc)
 # # thr.start()
-
+#
 # if __name__ == '__main__':
-#     # app.run(debug=False, host='0.0.0.0', port=PORT)
+#     app.run(debug=False, host='0.0.0.0', port=PORT)
+
