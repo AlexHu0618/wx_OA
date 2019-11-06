@@ -268,7 +268,7 @@ class DbController(threading.Thread):
                 self.session.rollback()
                 print(e)
         else:
-            user = Patient(gzh_openid=openid, unionid=unionid)
+            user = Patient(gzh_openid=openid, unionid=unionid, dt_subscribe=datetime.datetime.now())
             try:
                 self.session.add(user)
                 self.session.commit()
