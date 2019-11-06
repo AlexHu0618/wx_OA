@@ -185,6 +185,7 @@ class MapPatientQuestionnaire(Base):
     questionnaire_id = Column(ForeignKey('info_questionnaire.id'), nullable=False, index=True)
     weight = Column(Integer)
     height = Column(Integer)
+    age = Column(Integer)
     is_smoking = Column(Integer)
     is_drink = Column(Integer)
     is_operated = Column(Integer)
@@ -318,9 +319,11 @@ class DbController(threading.Thread):
                         for r in rsl_mappqn:
                             print(r)
                             if r.need_answer_module:
-                                r.need_answer_module = re.split(',', r.need_answer_module).append(str(i[0]))
+                                module_list = re.split(',', r.need_answer_module).append(str(i[0]))
+                                module_list2str = ','.join(module_list)
+                                r.need_answer_module = module_list2str
                             else:
-                                r.need_answer_module = [i[0]]
+                                r.need_answer_module = str(i[0])
                     else:
                         print('there is no record')
                 else:

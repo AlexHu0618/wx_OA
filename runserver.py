@@ -169,10 +169,10 @@ def test_temp(openid):
         'touser': openid,
         'template_id': temp_id,
         # 'url': 'http://weixin.qq.com',
-        # 'miniprogram': {
-        #     'appid': 'wx7469bbae33c99a3f',
-        #     'pagepath': 'index'
-        # },
+        'miniprogram': {
+            'appid': 'wx7469bbae33c99a3f',
+            'pagepath': 'pages/tabBar/home'
+        },
         'topcolor': '#FF0000',
         'data': {
             'first': {
