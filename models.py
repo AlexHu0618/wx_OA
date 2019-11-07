@@ -319,7 +319,8 @@ class DbController(threading.Thread):
                         for r in rsl_mappqn:
                             print(r)
                             if r.need_answer_module:
-                                module_list = re.split(',', r.need_answer_module).append(str(i[0]))
+                                module_list = re.split(',', r.need_answer_module)
+                                module_list.append(str(i[0]))
                                 module_list2str = ','.join(module_list)
                                 r.need_answer_module = module_list2str
                             else:
