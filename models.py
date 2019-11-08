@@ -311,7 +311,7 @@ class DbController(threading.Thread):
                 print(rsl_mappqn)
                 if rsl_mappqn:
                     pid_list = [r.patient_id for r in rsl_mappqn]
-                    rsl_single = self.session.query(Patient.gzh_openid, Patient.id).filter(Patient.id.in_(pid_list)).all()
+                    rsl_single = self.session.query(Patient.gzh_openid, Patient.id).filter(Patient.id.in_(pid_list)).filter(Patient.gzh_openid.isnot(None)).all()
                     print(rsl_single)
                     if rsl_single:
                         set_single_qn = set([j[0] for j in rsl_single])

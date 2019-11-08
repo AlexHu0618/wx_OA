@@ -112,7 +112,7 @@ def send_temp_ontime(isfirst, remind_t):
     print('current thread ', thr.getName())
     print('current active thread: ', threading.activeCount())
     print('start to send temp', time.asctime(time.localtime((time.time()))))
-    if isfirst != 1:
+    if not isfirst and remind_t:
         thr = DbController(func='get_specified_remind_openid', mycache=mycache, remind_time=remind_t)
         thr.start()
         thr.join()
@@ -126,7 +126,7 @@ def send_temp_ontime(isfirst, remind_t):
             print('no openid for sending template at ', remind_t)
     mutex.acquire()
     remind_time_list = mycache.get('all_remind_time')
-    delta = 10
+    delta = 60
     remind_time = None
     if remind_time_list:
         dt_now = datetime.datetime.now()
@@ -137,6 +137,11 @@ def send_temp_ontime(isfirst, remind_t):
             if delta >= 0:
                 remind_time = i
                 break
+            elif remind_time_list.index(i) + 1 == len(remind_time_list):
+                # it is the last one, then clear list and delta to 00:00, the list will be update
+                mycache.set('all_remind_time', None)
+                delta = 24 * 3600 - seconds_now
+                break
             else:
                 continue
     else:
@@ -144,21 +149,8 @@ def send_temp_ontime(isfirst, remind_t):
         thd_get = DbController(func='get_all_remind_time', mycache=mycache)
         thd_get.start()
     mutex.release()
-    thread_temp = threading.Timer(delta, send_temp_ontime, [0, remind_time])
+    thread_temp = threading.Timer(delta, send_temp_ontime, [False, remind_time])
     thread_temp.start()
-    # openid = mycache.get('openid')
-    # if openid:
-    #     test_temp(openid)
-    #     print('send temp to user: %s' % openid)
-    # else:
-    #     client = WeChatClient(APPID, APPSECRET)
-    #     for oid in client.user.iter_followers():
-    #         if oid != 'oHJc4uCZDoyurNGAJpJ-XAv1KaPA':
-    #             test_temp(oid)
-    #             print('send temp to user: %s' % oid)
-    # mutex.release()
-    # thread_temp = threading.Timer(3600, send_temp_ontime)
-    # thread_temp.start()
 
 
 def test_temp(openid):
@@ -250,7 +242,7 @@ def handle_tasks_ontime():
 
 thread_gettime = DbController(func='get_all_remind_time', mycache=mycache)
 thread_token = threading.Timer(1, update_token_ontime)
-thread_temp = threading.Timer(10, send_temp_ontime, [1, None])
+thread_temp = threading.Timer(10, send_temp_ontime, [True, None])
 thread_timer = threading.Timer(3600, handle_tasks_ontime)
 thread_gettime.start()
 thread_token.start()
