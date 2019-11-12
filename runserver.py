@@ -46,7 +46,11 @@ def handlemsg(data):
     mycache.set('openid', msg.source)
     mutex.release()
     if msg.type == 'text':
-        reply = TextReply(content=msg.content, message=msg)
+        if msg.content == '审核端':
+            resp = 'http://www.lele.fit/mobile/'
+        else:
+            resp = msg.content
+        reply = TextReply(content=resp, message=msg)
         xml = reply.render()
         return xml
     elif msg.type == 'event':
