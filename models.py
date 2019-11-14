@@ -354,12 +354,12 @@ class DbController(threading.Thread):
                         i.current_period = i.current_period + 1
                         i.days_remained = rsl_s.day_end - rsl_s.day_start + 1
                         i.interval = rsl_s.interval
-                        i.need_answer_module = None
+                        # i.need_answer_module = None
                     else:
                         print('there is no recode for update_day_oneday()')
                 else:
                     i.days_remained = i.days_remained - 1
-                    i.need_answer_module = None
+                    # i.need_answer_module = None
             try:
                 self.session.commit()
             except Exception as e:
