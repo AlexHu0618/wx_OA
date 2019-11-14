@@ -236,10 +236,14 @@ def handle_tasks_ontime():
     global thread_timer
     time_cur = time.localtime(time.time())
     h_cur = time_cur.tm_hour
-    if h_cur == 3:
+    if h_cur == 1:  ## update day on 01:00 everyday
         thread_update_day = DbController(func='update_day_oneday')
         thread_update_day.start()
         mylogger.info('change the day one day')
+    if h_cur == 14:  ## clear all need_answer_module
+        thread_clear_module = DbController(func='clear_need_answer_module')
+        thread_clear_module.start()
+        mylogger.info('clear all the need_answer_module')
     thread_timer = threading.Timer(3600, handle_tasks_ontime)
     thread_timer.start()
 

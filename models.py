@@ -252,6 +252,8 @@ class DbController(threading.Thread):
             self.update_day_oneday()
         elif self.func == 'delete_user_subscribe':
             self.delete_user_subscribe(self.kwargs['openid'])
+        elif self.func == 'clear_need_answer_module':
+            self.clear_need_answer_module()
         else:
             pass
 
@@ -365,3 +367,16 @@ class DbController(threading.Thread):
                 print(e)
         else:
             print('there is no MapPatientQuestionnaire for update_day_oneday()')
+
+    def clear_need_answer_module(self):
+        rsl = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1).all()
+        if rsl:
+            for i in rsl:
+                i.need_answer_module = None
+            try:
+                self.session.commit()
+            except Exception as e:
+                self.session.rollback()
+                print(e)
+        else:
+            print('there is no MapPatientQuestionnaire for clear_need_answer_module()')
