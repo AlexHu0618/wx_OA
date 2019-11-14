@@ -251,7 +251,7 @@ def handle_tasks_ontime():
 thread_gettime = DbController(func='get_all_remind_time', mycache=mycache)
 thread_token = threading.Timer(1, update_token_ontime)
 thread_temp = threading.Timer(10, send_temp_ontime, [True, None])
-thread_timer = threading.Timer(3600, handle_tasks_ontime)
+thread_timer = threading.Timer(3600, handle_tasks_ontime)  ## poll every hour
 thread_gettime.start()
 thread_token.start()
 thread_temp.start()
