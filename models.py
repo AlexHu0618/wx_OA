@@ -254,6 +254,8 @@ class DbController(threading.Thread):
             self.delete_user_subscribe(self.kwargs['openid'])
         elif self.func == 'clear_need_answer_module':
             self.clear_need_answer_module()
+        elif self.func == 'keep_conn_activated':
+            self.keep_conn_activated()
         else:
             pass
 
@@ -380,3 +382,10 @@ class DbController(threading.Thread):
                 print(e)
         else:
             print('there is no MapPatientQuestionnaire for clear_need_answer_module()')
+
+    def keep_conn_activated(self):
+        rsl = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1).one_or_none()
+        if rsl:
+            pass
+        else:
+            pass
