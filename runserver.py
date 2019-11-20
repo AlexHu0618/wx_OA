@@ -244,10 +244,11 @@ def handle_tasks_ontime():
         thread_clear_module = DbController(func='clear_need_answer_module')
         thread_clear_module.start()
         mylogger.info('clear all the need_answer_module')
-    thread_keep_conn = DbController(func='keep_conn_activated')
-    thread_keep_conn.start()
-    print('keep DB connection activated at ', time_cur)
-    mylogger.info('keep DB connection activated')
+    if h_cur == 7 or h_cur == 19:
+        thread_keep_conn = DbController(func='keep_conn_activated')
+        thread_keep_conn.start()
+        print('keep DB connection activated at ', time_cur)
+        mylogger.info('keep DB connection activated')
     thread_timer = threading.Timer(3600, handle_tasks_ontime)
     thread_timer.start()
 

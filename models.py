@@ -384,7 +384,7 @@ class DbController(threading.Thread):
             print('there is no MapPatientQuestionnaire for clear_need_answer_module()')
 
     def keep_conn_activated(self):
-        rsl = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1).one_or_none()
+        rsl = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1).first()
         if rsl:
             pass
         else:
