@@ -239,10 +239,12 @@ def handle_tasks_ontime():
     if h_cur == 1:  ## update day on 01:00 everyday
         thread_update_day = DbController(func='update_day_oneday')
         thread_update_day.start()
+        print('change the day one day', time_cur)
         mylogger.info('change the day one day')
     if h_cur == 14:  ## clear all need_answer_module
         thread_clear_module = DbController(func='clear_need_answer_module')
         thread_clear_module.start()
+        print('clear all the need_answer_module', time_cur)
         mylogger.info('clear all the need_answer_module')
     if h_cur == 7 or h_cur == 19:
         thread_keep_conn = DbController(func='keep_conn_activated')
