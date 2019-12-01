@@ -265,20 +265,20 @@ thread_temp.start()
 thread_timer.start()
 
 
-# def fuc():
-#     global mycache
-#     time_list = mycache.get('all_remind_time')
-#     print('here time thread ', time_list)
-#     print(type(time.localtime()))
-#     print(type(time_list[0]))
-#     dt_now = datetime.datetime.now()
-#     dt = time_list[0]
-#     delta = (dt.hour * 3600 + dt.minute * 60 + dt.second) - (dt_now.hour * 3600 + dt_now.minute * 60 + dt_now.second)
-#     print('delata= ', delta)
+# # def fuc():
+# #     global mycache
+# #     time_list = mycache.get('all_remind_time')
+# #     print('here time thread ', time_list)
+# #     print(type(time.localtime()))
+# #     print(type(time_list[0]))
+# #     dt_now = datetime.datetime.now()
+# #     dt = time_list[0]
+# #     delta = (dt.hour * 3600 + dt.minute * 60 + dt.second) - (dt_now.hour * 3600 + dt_now.minute * 60 + dt_now.second)
+# #     print('delata= ', delta)
 #
 #
 # t1 = datetime.time(21, 30)
-# t = DbController(func='update_day_oneday')
+# t = DbController(func='test')
 # t.start()
 # # thr = threading.Timer(5, fuc)
 # # thr.start()

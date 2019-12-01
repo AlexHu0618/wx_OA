@@ -13,9 +13,11 @@ from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Tim
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import distinct
+from sqlalchemy import func
 import threading
 import datetime
 import re
+from myLogger import mylogger
 
 
 Base = declarative_base()
@@ -256,6 +258,8 @@ class DbController(threading.Thread):
             self.clear_need_answer_module()
         elif self.func == 'keep_conn_activated':
             self.keep_conn_activated()
+        elif self.func == 'test':
+            self.test()
         else:
             pass
 
@@ -300,47 +304,117 @@ class DbController(threading.Thread):
         print(all_time_sorted)
 
     def get_specified_remind_openid(self, mycache, remind_time):
-        ######################################
-        ## get all patient for reminding
-        #####################################
-        rsl = self.session.query(QuestionnaireStruct.id, QuestionnaireStruct.questionnaire_id,
-                                 QuestionnaireStruct.period).filter_by(time=remind_time, respondent=0).all()
-        openid_set = set()
-        print(rsl)
-        if rsl:  ## [(id, questionnnaire_id, period), ...]
-            for i in rsl:
-                rsl_mappqn = self.session.query(MapPatientQuestionnaire).filter_by(questionnaire_id=i[1],
-                                                                                   current_period=i[2],
-                                                                                   status=1).all()
-                print(rsl_mappqn)
-                if rsl_mappqn:
-                    pid_list = [r.patient_id for r in rsl_mappqn]
-                    rsl_single = self.session.query(Patient.gzh_openid, Patient.id).filter(Patient.id.in_(pid_list)).filter(Patient.gzh_openid.isnot(None)).all()
-                    print(rsl_single)
-                    if rsl_single:
-                        set_single_qn = set([j[0] for j in rsl_single])
-                        openid_set = openid_set | set_single_qn
-                        for r in rsl_mappqn:
-                            print(r)
-                            if r.need_answer_module:
-                                module_list = re.split(',', r.need_answer_module)
-                                module_list.append(str(i[0]))
-                                module_list2str = ','.join(module_list)
-                                r.need_answer_module = module_list2str
-                            else:
-                                r.need_answer_module = str(i[0])
-                    else:
-                        print('there is no record')
+        rsl = self.__add_module_at_remind_time(remind_time)
+        if rsl:
+            openid_set = set()
+            rsl_mappqn = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1,
+                                                                            MapPatientQuestionnaire.need_answer_module.isnot(None)).all()
+            if rsl_mappqn:
+                pid_list = [r.patient_id for r in rsl_mappqn]
+                rsl_single = self.session.query(Patient.gzh_openid, Patient.id).filter(Patient.id.in_(pid_list)).filter(
+                    Patient.gzh_openid.isnot(None)).all()
+                if rsl_single:
+                    set_single_qn = set([j[0] for j in rsl_single])
+                    openid_set = openid_set | set_single_qn
                 else:
-                    print('warning! mapPatientQuestionnaire--%s is None', i[1])
+                    print('There is no openid for push')
+                    mylogger.warn('There is no openid for push')
+            else:
+                print('There is no mappqn for push')
+                mylogger.warn('There is no mappqn for push')
+        else:
+            print('ERROR! FAIL TO ADD MODULE AT REMIND TIME')
+            mylogger.error('Fail to add_module_at_remind_time ' + remind_time)
+        mycache.set('remind_openid_set', openid_set)
+
+    # def get_specified_remind_openid(self, mycache, remind_time):
+    #     ######################################
+    #     ## get all patient for reminding
+    #     #####################################
+    #     rsl = self.session.query(QuestionnaireStruct.id, QuestionnaireStruct.questionnaire_id,
+    #                              QuestionnaireStruct.period).filter_by(time=remind_time, respondent=0).all()
+    #     openid_set = set()
+    #     if rsl:  ## [(id, questionnnaire_id, period), ...]
+    #         for i in rsl:
+    #             rsl_mappqn = self.session.query(MapPatientQuestionnaire).filter_by(questionnaire_id=i[1],
+    #                                                                                current_period=i[2],
+    #                                                                                status=1).all()
+    #             if rsl_mappqn:
+    #                 pid_list = [r.patient_id for r in rsl_mappqn]
+    #                 rsl_single = self.session.query(Patient.gzh_openid, Patient.id).filter(Patient.id.in_(pid_list)).filter(Patient.gzh_openid.isnot(None)).all()
+    #                 if rsl_single:
+    #                     set_single_qn = set([j[0] for j in rsl_single])
+    #                     openid_set = openid_set | set_single_qn
+    #                     for r in rsl_mappqn:
+    #                         if r.need_answer_module:
+    #                             module_list = re.split(',', r.need_answer_module)
+    #                             module_list.append(str(i[0]))
+    #                             module_list2str = ','.join(module_list)
+    #                             r.need_answer_module = module_list2str
+    #                         else:
+    #                             r.need_answer_module = str(i[0])
+    #                 else:
+    #                     print('there is no record')
+    #             else:
+    #                 print('warning! mapPatientQuestionnaire--%s is None' % i[1])
+    #         try:
+    #             self.session.commit()
+    #         except Exception as e:
+    #             self.session.rollback()
+    #             print(e)
+    #     else:
+    #         print('warning! there is no openid for the remind time-- ', remind_time)
+    #     mycache.set('remind_openid_set', openid_set)
+
+    def __add_module_at_remind_time(self, remind_time):  ## modify the need_answer_module at the specified remind time
+        rsl = self.session.query(QuestionnaireStruct).filter_by(time=remind_time, respondent=0).all()
+        if rsl:
+            continuous_m = [m for m in rsl if m.process_type == 0]
+            discrete_m = [m for m in rsl if (m.process_type == 1 and m.day_start != 1)]  ## except the first day
+            if continuous_m:
+                ## add continuous module
+                for m in continuous_m:
+                    rsl_mappqn = self.session.query(MapPatientQuestionnaire).filter_by(questionnaire_id=m.questionnaire_id,
+                                                                                       current_period=m.period,
+                                                                                       status=1).all()
+                    if rsl_mappqn:
+                        self.__add_module_in_mappqn(rsl_mappqn, m)
+                    else:
+                        continue
+            if discrete_m:
+                ## add discrete module
+                for dm in discrete_m:
+                    dt_built_date = datetime.datetime.now().date() - datetime.timedelta(days=dm.day_start - 1)  ## first day must be 1 not 0
+                    rsl_mappqn2 = self.session.query(MapPatientQuestionnaire).filter(
+                        MapPatientQuestionnaire.questionnaire_id == dm.questionnaire_id,
+                        MapPatientQuestionnaire.status == 1,
+                        func.date(MapPatientQuestionnaire.dt_built) == dt_built_date).all()
+                    if rsl_mappqn2:
+                        self.__add_module_in_mappqn(rsl_mappqn2, dm)
+                    else:
+                        continue
+                return True
+        else:
+            print('warning! there is no QuestionnaireStruct for the remind time-- ', remind_time)
+            mylogger.warn('there is no QuestionnaireStruct for the remind time-- ' + remind_time)
+            return None
+
+    def __add_module_in_mappqn(self, all_mappqn, m):
+        for mpqn in all_mappqn:
+            if mpqn.need_answer_module:
+                module_list = re.split(',', mpqn.need_answer_module)
+                module_list.append(str(m.id))
+                module_list2str = ','.join(module_list)
+                mpqn.need_answer_module = module_list2str
+            else:
+                mpqn.need_answer_module = str(m.id)
             try:
                 self.session.commit()
             except Exception as e:
                 self.session.rollback()
                 print(e)
-        else:
-            print('warning! there is no openid for the remind time-- ', remind_time)
-        mycache.set('remind_openid_set', openid_set)
+                mylogger.error('Can not add module for ' + mpqn.patient_id + ' at remind time ' + remind_time)
+                continue
 
     def update_day_oneday(self):
         rsl = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1).all()
@@ -389,3 +463,10 @@ class DbController(threading.Thread):
             pass
         else:
             pass
+
+    def test(self):
+        sql = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1,
+                                                                 MapPatientQuestionnaire.need_answer_module.isnot(None))
+        print(sql)
+        rsl_mappqn = sql.all()
+        print(rsl_mappqn)
