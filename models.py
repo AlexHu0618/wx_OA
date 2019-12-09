@@ -455,7 +455,7 @@ class DbController(threading.Thread):
                 elif i.need_answer_module is None:
                     i.status = 3
                 else:
-                    pass
+                    continue
             try:
                 self.session.commit()
             except Exception as e:
