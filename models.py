@@ -447,8 +447,15 @@ class DbController(threading.Thread):
     def clear_need_answer_module(self):
         rsl = self.session.query(MapPatientQuestionnaire).filter(MapPatientQuestionnaire.status == 1).all()
         if rsl:
+            date_now = datetime.datetime.now().date()
             for i in rsl:
-                i.need_answer_module = None
+                which_dayon = (date_now - i.dt_built.date()).days + 1
+                if which_dayon < i.total_days + 1:
+                    i.need_answer_module = None
+                elif i.need_answer_module is None:
+                    i.status = 3
+                else:
+                    pass
             try:
                 self.session.commit()
             except Exception as e:
